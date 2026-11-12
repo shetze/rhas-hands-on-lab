@@ -8,8 +8,9 @@ asciidoc:
   attributes:
     # Update this for every freshly provisioned workshop cluster. Every lab URL
     # is derived from it, so this one line repoints the whole lab.
-    # Value below is the cluster used in the 2026-11-09 demo sync.
-    openshift_cluster_ingress_domain: apps.rhas.sandbox5240.opentlc.com
+    # Value below is the event cluster (sandbox1066). It stays up until
+    # after the event.
+    openshift_cluster_ingress_domain: apps.summit.sandbox1066.opentlc.com
     # Repository the pre-provisioned workspaces are created from. Participants
     # only need it if they have to recreate their workspace.
     lab_repo_url: https://github.com/shetze/sc-demo

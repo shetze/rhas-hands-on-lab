@@ -3,6 +3,8 @@
 == Overview
 https://www.redhat.com/en/blog/new-standard-red-hat-vehicle-operating-system-modern-and-future-vehicles[Red Hat In-Vehicle Operating System (RHIVOS),window=_blank]
 delivers a Linux-based foundation for the software-defined vehicle, enabling cloud-native development, functional safety, and long-term relevancy.
+It is the operating system that the Red Hat Automotive Suite targets: with the suite, you develop and test applications
+for RHIVOS and build complete RHIVOS OS images.
 
 RHIVOS is built around three principles:
 
@@ -36,10 +38,36 @@ To support mixed criticality, a RHIVOS image is split into two partitions:
 
 - The *root partition*, also called the ASIL partition, runs the safety-relevant workloads.
 - The *QM partition* runs workloads that are only quality-managed (QM), such as infotainment. It is isolated from the root
-  partition, so that a misbehaving QM application cannot interfere with safety-relevant functions ("freedom from interference").
+  partition, so that a misbehaving QM application cannot interfere with safety-relevant functions.
 
-In the lab activities, you will boot a RHIVOS image that runs containerized applications in both partitions, look at them
-from each side, and find out how the image was built with the *Automotive Image Builder*.
+[#ffi]
+== Freedom from interference in one sentence
+
+Whatever an application in the QM partition does, even if it crashes, hangs, or eats up memory, nothing may happen to
+the safety-relevant applications in the root partition. This guarantee is called *freedom from interference*.
+
+With RHIVOS, the QM partition is itself a container. The operating system separates it from the root partition with
+the same mechanisms that isolate containers in the data center: separate process namespaces, resource limits, and
+SELinux labels. The only connections between the partitions are the ones that were configured on purpose.
+
+== The demo application
+
+The image you boot in this lab runs a small demo application, split across both partitions:
+
+.Demo applications in the partitions of a RHIVOS image
+image::rhas/05-partitions.svg[Root partition with the engine service and the FFI server, QM partition with a 20% memory limit, running the radio service, routing manager, DLT daemon, and FFI client, connected through shared sockets in /run/ipc]
+
+- The *engine service* simulates the drivetrain. It is safety-relevant and runs in the root partition.
+- The *radio service* simulates the infotainment radio. When the vehicle reverses, it must turn its volume down, so that
+  warning sounds can be heard. It runs in the QM partition.
+- The *routing manager* passes messages between them, using the SOME/IP protocol over shared sockets. Only applications
+  with the right SELinux label may use these sockets.
+- The *FFI client* in the QM partition is a test application that uses up more and more memory. It reports its memory
+  use to the *FFI server* in the root partition. The QM partition may use at most 20% of the memory, so the client hits
+  that limit long before it can affect the root partition.
+
+In the lab activities, you will boot this image, look at the applications from each side, listen to the radio turning
+itself down, let the FFI client run out of memory, and find out how the image was built with the *Automotive Image Builder*.
 
 == Next
 

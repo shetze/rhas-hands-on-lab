@@ -5,12 +5,13 @@
 Here is a quick overview of the first activities in this lab:
 
 - Log in to the Red Hat Automotive Suite with the lab user assigned to you.
-- Open your prepared, ready-to-code workspace in Red Hat OpenShift Dev Spaces.
-- Verify that the Cloud Automotive Image Builder service is reachable from your workspace.
+- Open your personal, ready-to-code workspace in Red Hat OpenShift Dev Spaces, the cloud development environment of the Red Hat Automotive Suite.
+- Verify that the Cloud Automotive Image Builder service (the RHAS Builder) is reachable from your workspace.
 - Authenticate to the Jumpstarter service so you can lease a test device later.
 
-Your user account and your workspace have already been created for you, and the lab repository is already cloned into the workspace.
-OpenShift Dev Spaces provides all supporting infrastructure, so that you can focus on the lab, not on setup.
+Your user account has already been created for you. Every lab user gets a personal workspace in OpenShift Dev Spaces,
+with the lab repository cloned into it. OpenShift Dev Spaces provides all supporting infrastructure, so that you can
+focus on the lab, not on setup.
 
 [#beforeyoustart]
 == Before you start
@@ -23,6 +24,11 @@ IMPORTANT: This is a step that is critical for the success of this lab.
 NOTE: This is information that you should know, but it is not critical for the success of this lab.
 
 TIP: This is a tip that will help you complete the lab.
+
+Sections marked *Bonus* are not part of the core lab. Do them only if you have time left, during the lab or afterwards.
+
+Some parts of the lab are shown by your instructors on the projector, such as a change running through the build
+pipeline. They are marked as *Demonstration* and are not part of your hands-on steps.
 
 
 == Tips for working with the lab environment
@@ -43,7 +49,11 @@ terminal does not have the focus, the browser handles the keys instead.
 [#login]
 == Log in to Red Hat OpenShift Dev Spaces
 
-You do not need to register. Your instructor gives you a lab user, for example `user35`, and its password.
+You do not need to register. At the start of the lab, you get a slip of paper with your lab user, for example `user35`.
+Your instructor tells you the initial password, which is the same for everybody.
+
+// TODO(provisioning): confirm the user naming scheme (userN?) used by the provisioning
+// playbook, so that the printed slips match.
 
 IMPORTANT: Open Red Hat OpenShift Dev Spaces in a *private browser window*:
 
@@ -53,15 +63,37 @@ WARNING: Use a private window. If your browser already holds cookies for `opentl
 you may be signed in with those stale credentials instead of your lab user, and the rest
 of this lab will fail in confusing ways.
 
-IMPORTANT: Choose *Log in with OpenShift*, log in with your lab user and password, and approve the permission request when prompted.
+Logging in takes a few steps:
+
+. Click *Log in with OpenShift*.
+. On the *Log in with* page, choose *AutomotiveSuite*.
++
+IMPORTANT: Do *not* choose *OpenShift* on this page. That login is reserved for the cluster administrators, and your lab user does not exist there.
+. On the *Red Hat Automotive Suite* sign-in page, enter your lab user and the initial password.
+. You are asked to set a new password. Choose one you can remember for the rest of the lab. From now on, the lab user
+  is yours alone: nobody else can log in with it, even by mistake.
+. On the *Authorize Access* page, click *Allow selected permissions*.
+
+// TODO(provisioning): add screenshots of the "Log in with" page and of the Keycloak "update password"
+// page once the provisioning sets the required action for the lab users.
 
 
 [#devspaces]
 == Open your workspace
 
-The Dev Spaces dashboard lists your workspace under *Recent Workspaces* on the left. It is named `rhas-starter`.
+Every lab user has a personal workspace, named `rhas-starter`. Depending on how far the lab environment was prepared for
+you, it either exists already or you create it now. Look at the left side of the Dev Spaces dashboard:
 
-IMPORTANT: Click the workspace name, or click the *⋮* menu next to it and choose *Open*.
+* If `rhas-starter` is listed under *Recent Workspaces*, click the workspace name, or click the *⋮* menu next to it and choose *Open*.
+* If the dashboard shows *Workspaces (0)* and no recent workspaces, create your workspace from the lab repository:
+.. Click *Create Workspace* on the left.
+.. Under *Import from Git*, paste the lab repository URL into the *Git repo URL* field:
++
+[source,sh,role=copypaste,subs="+attributes"]
+----
+{lab_repo_url}
+----
+.. Click *Create & Open*.
 
 The workspace now starts. It walks through initializing, waiting for the workspace to start, and finally opening the IDE.
 
@@ -80,13 +112,7 @@ You should see a familiar *VS Code* development environment in your browser, wit
 If your workspace does not start or behaves strangely, go back to the Dev Spaces dashboard and use the *⋮* menu next to the workspace:
 
 * *Restart Workspace* restarts it and keeps your files.
-* *Delete Workspace* removes it. To get a fresh one, paste the lab repository URL into the *Git repo URL* field under *Import from Git*
-  and click *Create & Open*:
-+
-[source,sh,role=copypaste,subs="+attributes"]
-----
-{lab_repo_url}
-----
+* *Delete Workspace* removes it. To get a fresh one, create it again from the lab repository with *Import from Git*, as described above.
 ====
 
 
@@ -97,7 +123,8 @@ Before going further, confirm the workspace can reach the services it needs.
 
 IMPORTANT: Select *Terminal -> New Terminal* from the menu at the top left, and confirm the prompt.
 
-TIP: Enlarge the terminal panel so it fills the screen. You will spend most of this lab in it.
+TIP: Enlarge the terminal panel so it fills the screen. You will spend most of this lab in it. If the editor asks you to
+pick a color theme on first start, choose any.
 
 Your prompt reads `(venv) sc-demo (main) $`. The Python virtual environment the lab needs is already active.
 
@@ -183,10 +210,30 @@ Finally, list the test devices Jumpstarter can give you access to:
 jmp get exporters
 ----
 
-image::starter/07-get-exporters.png[]
+[source,sh]
+----
+NAME             LABELS
+mock-exporter-0  🟢 device=mock,type=virtual
+mock-exporter-1  🟢 device=mock,type=virtual
+mock-exporter-2  🟢 device=mock,type=virtual
+qemu-exporter-0  🟢 device=qemu,type=virtual
+qemu-exporter-1  🟢 device=qemu,type=virtual
+qemu-exporter-2  ❌ device=qemu,type=virtual
+...
+----
 
-Each line is an *Exporter*, a test device made available through Jumpstarter. In this lab, they are all virtual QEMU devices,
-labeled `device=qemu,type=virtual`. If this command lists Exporters, your Jumpstarter login works.
+Each line is an *Exporter*, a test device made available through Jumpstarter. If this command lists Exporters, your
+Jumpstarter login works.
+
+- The `qemu-exporter-...` lines, labeled `device=qemu`, are the virtual QEMU devices you work with in this lab.
+- The `mock-exporter-...` lines, labeled `device=mock`, are simulated devices for testing Jumpstarter itself. You can ignore them.
+- The marker in front of the labels shows whether an Exporter is available (🟢) or not (❌), for example because it is offline.
+
+// TODO(dry run): replace the output above with a screenshot from the event cluster once all
+// exporters are deployed (one qemu exporter per participant is needed).
+
+NOTE: Every participant needs a free `qemu` Exporter for the next activity. A leased Exporter is blocked for everybody
+else until the lease ends.
 
 TIP: If you run into problems later in the lab, `jmp get exporters` is a quick way to check that you are still logged in to Jumpstarter.
 

@@ -19,32 +19,69 @@ You only read them; you do not need to change anything.
 
 The contents of the image are declared in a single file. Open `manifests/auto-app.aib.yml` in the editor.
 
+The file is long, because it describes everything in the image, down to individual configuration files. You do not
+need to read all of it. The following parts connect directly to what you saw on the device.
+
+The `image` section at the top sets global properties:
+
+[source,yaml]
+----
+image:
+  hostname: auto-app
+  selinux_mode: enforcing
+----
+
+This is where the host name in your prompt, `[root@auto-app ~]#`, comes from, and why `getenforce` printed `Enforcing`.
+
 The `content` section describes the root partition. It lists the RPM repositories to pull from and the packages to install:
 
 [source,yaml]
 ----
 content:
   repos:
-    ...
+    - id: epel
+      ...
+      priority: 20
+    - id: bigmachine
+      baseurl: http://...
+      priority: 10
     - id: local
       baseurl: file:///workspace/export/
-      priority: 6
+      priority: 5
   rpms:
     - auto-app
+    ...
     - podman
+    ...
     - qm
+    ...
+    - tmux
+    ...
     - auto-apps
+    - auto-apps-selinux
     - dlt-daemon
+    ...
+    - selinux-policy-automotive
     - vsomeip3-routingmanager
+    - vsomeip3-selinux
     ...
 ----
 
-- `qm` installs the QM partition you explored in the previous activity.
-- `auto-app` is the small C++ application in the `src` directory of the lab repository. The pipeline builds it into an RPM
-  and places it in `/workspace/export`, which the `local` repository points to.
+If a package is available from more than one repository, the repository with the lowest `priority` number wins.
 
-The `container_images` entry pulls the `auto-apps` container image, which contains the engine, radio, and routing manager services,
-from a container registry and embeds it in the image:
+Note the two similar names:
+
+- `auto-app` is a small "Hello" program in the `src` directory of the lab repository. The pipeline builds it into an RPM
+  and places it in `/workspace/export`, which the `local` repository points to. The automated boot test uses it to check
+  that the image works.
+- `auto-apps` is the demo application you explored: the engine service, the radio service, and the radio client. It is
+  built separately and comes as a ready-made RPM from a demo package repository (`bigmachine`), together with
+  `auto-apps-selinux`, the SELinux policy module for the demo.
+
+`qm` installs the QM partition, and `selinux-policy-automotive` and `vsomeip3-selinux` add the SELinux policy for
+automotive systems and for the SOME/IP communication.
+
+The `container_images` entry pulls container images from a registry and embeds them in the image:
 
 [source,yaml]
 ----
@@ -52,10 +89,15 @@ from a container registry and embeds it in the image:
     - source: quay.io/shetze/auto-apps
       tag: latest
       name: localhost/auto-apps
+      ...
+    - source: quay.io/shetze/ffi_server-arm64
+      tag: latest
+      name: localhost/ffi_server
+      ...
 ----
 
-This is why you saw the image name `localhost/auto-apps` in `podman ps`: the container is already part of the OS image, so the
-device does not need network access to start its applications.
+This is why you saw the image names `localhost/auto-apps` and `localhost/ffi_server` in `podman ps`: the containers are
+already part of the OS image, so the device does not need network access to start its applications.
 
 Each containerized application is started by a systemd *Quadlet* file, injected into the image through the `add_files` section.
 This is the engine service you saw in the root partition:
@@ -75,18 +117,32 @@ This is the engine service you saw in the root partition:
         Image=localhost/auto-apps
         Network=none
         ...
+        SecurityLabelType=ipc_t
         Exec=/usr/bin/engine-service
 ----
 
-The `qm` section further down describes the QM partition in the same way. It has its own packages, its own copy of the
-`auto-apps` container, and its own Quadlet files, such as `radio.container` for the radio service:
+`SecurityLabelType=ipc_t` is where the SELinux label you saw with `ps axfZ` comes from. The permission to communicate
+is declared right next to the application, in the image definition.
+
+The `qm` section further down describes the QM partition in the same way. It sets the memory limit you hit with the
+FFI client, and has its own packages, its own container images, and its own Quadlet files, such as `radio.container`
+for the radio service:
 
 [source,yaml]
 ----
 qm:
+  memory_limit:
+    max: 20%
   content:
     ...
+    container_images:
+      ...
+      - source: quay.io/shetze/ffi_client-arm64
+        tag: latest
+        name: localhost/ffi_client
+      ...
     add_files:
+      ...
       - path: /etc/containers/systemd/radio.container
         text: |
           [Unit]
@@ -95,18 +151,20 @@ qm:
           [Container]
           Image=localhost/auto-apps
           ...
+          SecurityLabelType=qm_container_ipc_t
+          ...
           Exec=/usr/bin/radio-service
 ----
 
-NOTE: All file contents are written inline with `text:`, so the complete image definition is in one file.
-Files that the Automotive Image Builder should take from the workspace, such as the `auto-app` RPM, must be placed in
-`/workspace/export`, where the builder can see them.
+The QM partition also installs the `auto-apps` RPM. This is the copy of the radio client you started outside the radio
+container: the program is there, but without the `qm_container_ipc_t` label it may not use the communication sockets.
 
-// TODO(dry run): Michael is verifying whether files copied to /workspace/export can also be
-// added with source_path:. Update the note above with the result.
+NOTE: Most file contents are written inline with `text:`. Larger files are kept next to the manifest in the
+`manifests` directory and added with `source_path:`, for example the Quadlet files of the FFI client and server in
+`manifests/systemd/`. RPMs that the pipeline builds, such as `auto-app`, must be placed in `/workspace/export`, where
+the image builder finds them through the `local` repository.
 
-Finally, the `auth` section sets the root password you used to log in. The manifest also sets SELinux to permissive mode,
-which you saw in the previous activity.
+Finally, the `auth` section sets the root password you used to log in.
 
 
 [#pipeline]
@@ -114,8 +172,9 @@ which you saw in the previous activity.
 
 The pipeline is defined as code in the repository, in `.tekton/pr-build-validate.yaml`. Open it in the editor.
 
-https://pipelinesascode.com/[Pipelines as Code,window=_blank] watches the repository. Every push to the `main` branch
-starts a new run of this pipeline, named `pr-build-validate-<id>`. This is the name you saw in the image URI in `caib image list`.
+https://pipelinesascode.com/[Pipelines as Code,window=_blank] connects the repository to the cluster: a webhook in the
+Git repository notifies the cluster of every change. Every push to the `main` branch starts a new run of this pipeline,
+named `pr-build-validate-<id>`. This is the name you saw in the image URI in `caib image list`.
 
 The pipeline performs the following tasks:
 
@@ -162,10 +221,73 @@ pipeline flashes and tests a physical ECU.
 // Developer perspective -> Pipelines, project buildspace-<...>.
 
 
-[#bonus]
-== Optional: build the application yourself
+[#pipelinedemo]
+== Demonstration: a change runs through the pipeline
 
-NOTE: This section is optional. Do it if you have time left.
+NOTE: This part is shown by your instructors on the projector. You do not push changes yourself: everybody would need
+their own repository and access token, and 50 pipeline runs at once would overload the shared lab cluster.
+
+Your instructor makes a small change to the image manifest, for example the `priority` of the `local` repository, commits it,
+and pushes it to the `main` branch. You see:
+
+. The webhook notifies the cluster, and Pipelines as Code starts a new `pr-build-validate-<id>` run.
+. The OpenShift console shows the run as a graph of the tasks you just read about: right after cloning the
+  repository, it leases a virtual device and prepares the build workspace in parallel. Then it builds the RPM and the OS
+  image, flashes the image onto the leased device, and runs the boot test. The device stays leased for the whole build.
+. When the run is finished, the new image appears in the artifact store.
+
+A complete run takes about 10 to 12 minutes, most of it for building the OS image. This is the turnaround time for a
+full operating system image, built and tested on a device, for every single change.
+
+[#followbuild]
+=== Follow the build from your workspace
+
+You can watch the image being built from your own terminal. While the pipeline runs, list the images:
+
+[source,sh,role=execute]
+----
+caib image list
+----
+
+The new image appears at the top of the list with the status `Building`:
+
+[source,sh]
+----
+NAME                            STATUS     NOTIFICATION  AGE  REQUESTED BY
+pr-build-validate-wwtcd-12095   Building   -             2m   system:serviceaccount:buildspace-...:pipeline
+pr-build-validate-mjvmb-57433   Completed  -             2h   system:serviceaccount:buildspace-...:pipeline
+...
+----
+
+Follow the output of the Automotive Image Builder for this image, using its name from the list:
+
+[source,sh]
+----
+caib image logs <name of the building image>
+----
+
+You see much more detail than in the pipeline view: every step of composing the operating system image. Some warnings
+scroll by; they are known and do not affect the result. When the build is done, the log ends with `completed
+successfully` and the status in `caib image list` changes to `Completed`. Press *Ctrl+C* if you want to stop following
+the log earlier.
+
+[#newimage]
+=== Bonus: boot the new image
+
+Once the pipeline run has finished, the new image is available to everybody. The newest `pr-build-validate` image with
+the status `Completed` is the one your instructor just built. If you like, go back to
+xref:activity-02.adoc#lease[Booting a RHIVOS image], and lease, flash, and boot it on your own virtual device, exactly as
+before. Make sure you copy the URI of this new image, not the one you used before. The demo application behaves the
+same, because the change only touched the build configuration.
+
+TIP: The pipeline and all participants share the same pool of virtual devices. If `jmp shell` keeps waiting for a
+lease, all devices are busy. Press *Ctrl+C* and try again in a few minutes.
+
+
+[#bonus]
+== Bonus: build the application yourself
+
+NOTE: This section is a bonus. Do it if you have time left.
 
 The `auto-app` application can also be built directly in your workspace, without the pipeline. Your workspace already
 contains the compiler and build tools.
@@ -193,7 +315,7 @@ Version: 0.1 (a571ff2)
 This is the same program the `validate` task runs on the device. A cloud workspace like this one gives every developer
 the same, ready-to-use build environment, without installing a toolchain on their own laptop.
 
-// TODO(dry run): verify that make build-local works in the pre-provisioned workspace. If the
+// TODO(dry run): verify that make build-local works in the lab workspace. If the
 // workspace runs on arm64 (uname -m), add that it builds natively for the target, without cross-compiling.
 
 == Next

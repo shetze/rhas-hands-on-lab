@@ -4,7 +4,11 @@ For your convenience, this page contains access information to all systems in yo
 
 == Lab Login
 
-Your instructor gives you a lab user, for example `user35`, and its password. Your workspace in Red Hat OpenShift Dev Spaces is already created for you.
+Your lab user, for example `user35`, is on the slip of paper you got at the start. Your instructor tells you the initial
+password. On your first login, you set your own password.
+
+Login sequence: *Log in with OpenShift* -> *AutomotiveSuite* (not *OpenShift*) -> lab user and password -> new password
+(first login only) -> *Allow selected permissions*.
 
 TIP: Log in in a *private browser window*. Cookies left over from another lab can sign you in with the wrong account.
 
@@ -12,14 +16,14 @@ TIP: Log in in a *private browser window*. Cookies left over from another lab ca
 
 == Application URLs
 
-=== Red Hat Dev Spaces https://devspaces.{openshift_cluster_ingress_domain}['link',window=_blank]
+=== Red Hat OpenShift Dev Spaces https://devspaces.{openshift_cluster_ingress_domain}['link',window=_blank]
 
 [source,sh,role=execute,subs=attributes+]
 ----
 https://devspaces.{openshift_cluster_ingress_domain}
 ----
 
-=== Red Hat Automotive Suite / OpenShift console https://console-openshift-console.{openshift_cluster_ingress_domain}['link',window=_blank]
+=== OpenShift console https://console-openshift-console.{openshift_cluster_ingress_domain}['link',window=_blank]
 
 [source,sh,role=execute,subs=attributes+]
 ----
@@ -28,7 +32,8 @@ https://console-openshift-console.{openshift_cluster_ingress_domain}
 
 === Lab repository
 
-Only needed if you have to delete and recreate your workspace.
+Needed if your Dev Spaces dashboard shows no workspace yet, or if you have to recreate it: paste it under
+*Create Workspace* -> *Import from Git* and click *Create & Open*.
 
 [source,sh,role=execute,subs=attributes+]
 ----
@@ -77,6 +82,9 @@ jmp get exporters
 jmp shell -l device=qemu
 ----
 
+The lease ends after 30 minutes and the shell closes by itself. Lease, flash, and boot again to continue. Set
+`DISKIMAGE` again first: the variable is lost together with the old shell.
+
 === List hardware interfaces exposed on the Exporter
 
 [source,sh,role=execute]
@@ -89,6 +97,13 @@ j
 [source,sh,role=execute]
 ----
 caib image list
+----
+
+=== Follow the build log of an image
+
+[source,sh]
+----
+caib image logs <image name from caib image list>
 ----
 
 === Flash and boot the device
@@ -137,6 +152,60 @@ podman ps
 journalctl -f -u engine
 ----
 
+Press *Ctrl+C* to stop following a log.
+
+=== Show all processes with their SELinux labels
+
+[source,sh,role=execute]
+----
+ps axfZ
+----
+
+=== List the communication sockets shared between the partitions
+
+[source,sh,role=execute]
+----
+ls -l /run/ipc/vsomeip/
+----
+
+=== Check the SELinux mode
+
+[source,sh,role=execute]
+----
+getenforce
+----
+
+=== Start the radio client directly from the root partition
+
+[source,sh,role=execute]
+----
+podman exec -it qm podman exec -it systemd-radio radio-client
+----
+
+=== Start, observe, and stop the FFI client (memory test)
+
+[source,sh,role=execute]
+----
+podman exec qm systemctl start ffi_client
+----
+
+[source,sh,role=execute]
+----
+top -o %MEM
+----
+
+Press *q* to quit `top`.
+
+[source,sh,role=execute]
+----
+journalctl -f -u ffi_server
+----
+
+[source,sh,role=execute]
+----
+podman exec qm systemctl stop ffi_client
+----
+
 === Get a shell in the QM partition
 
 [source,sh,role=execute]
@@ -144,11 +213,41 @@ journalctl -f -u engine
 podman exec -it qm /bin/bash
 ----
 
-=== Follow the radio service log (inside the QM partition)
+Leave it again with `exit`.
+
+=== Start the radio client (inside the QM partition)
 
 [source,sh,role=execute]
 ----
-journalctl -f -u radio
+podman exec -it systemd-radio radio-client
 ----
 
-Press *Ctrl+C* to stop following a log.
+Volume: *+* / *-*, next station: *SPACE*, radio on/off: *ESC*, quit: *Q*.
+
+=== List the processes of the QM partition (inside the QM partition)
+
+[source,sh,role=execute]
+----
+ps axl
+----
+
+[#tmux]
+=== Optional: split the serial console with tmux
+
+`tmux` is installed on the device. It lets you watch several things side by side, for example `top`, the engine log,
+and the radio client.
+
+[source,sh,role=execute]
+----
+tmux
+----
+
+All tmux keys start with *Ctrl+B*, followed by a second key:
+
+- *Ctrl+B*, then *"* : split the current pane into a top and a bottom half
+- *Ctrl+B*, then *%* : split the current pane into a left and a right half
+- *Ctrl+B*, then an arrow key: move to the neighboring pane
+- `exit` in a pane: close it. Closing the last pane ends tmux.
+
+WARNING: Pressing *Ctrl+B* three times in a row quits the Jumpstarter serial console. In tmux, press *Ctrl+B* only once
+before each command key.

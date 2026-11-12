@@ -7,12 +7,15 @@ The image you just booted runs a small set of demo automotive applications, all 
 - The *engine service* simulates the vehicle's drivetrain and periodically switches between driving and reversing.
   It is safety-relevant, so it runs in the *root partition* (the ASIL partition).
 - The *radio service* simulates an infotainment radio. It is not safety-relevant, so it runs in the *QM partition*.
+  When the vehicle reverses, the radio must turn its volume down, so that warning sounds can be heard.
 - The *routing manager* connects the services. They talk to each other using https://some-ip.com/[SOME/IP,window=_blank],
-  a communication protocol widely used in vehicles.
+  a communication protocol widely used in vehicles, implemented by the vsomeip library.
 
 In this activity, you look at the same system from two sides: from the root partition and from inside the QM partition.
+Then you find out what allows the engine in the root partition to talk to the radio in the QM partition, and what stops
+everything else. Finally, you let an application in the QM partition run out of memory, and watch the system contain it.
 
-NOTE: You should still be logged in on the serial console of your device, with the prompt `[root@localhost ~]#`.
+NOTE: You should still be logged in on the serial console of your device, with the prompt `[root@auto-app ~]#`.
 If you are not, or if your 30-minute lease has expired in the meantime (the console disconnects and you are back at the
 `(venv) sc-demo (main) $` prompt), go back to the previous activity and lease, flash, and boot the device again.
 
@@ -27,17 +30,19 @@ Containers in the root partition are managed by Podman, controlled by systemd. L
 podman ps
 ----
 
-You should see two containers:
+You should see three containers:
 
 [source,sh]
 ----
-CONTAINER ID  IMAGE                         COMMAND               CREATED         STATUS         PORTS  NAMES
-dd383c3c2c99                                /sbin/init            12 seconds ago  Up 11 seconds         qm
-8b0bfe959...  localhost/auto-apps:latest    /usr/bin/engine-s...  12 seconds ago  Up 12 seconds         systemd-engine
+CONTAINER ID  IMAGE                         COMMAND               CREATED         STATUS         PORTS     NAMES
+571c80d0ee36  localhost/ffi_server:latest   ffi-server            36 seconds ago  Up 36 seconds  7001/tcp  ffi_server
+7105b825a991                                /sbin/init            36 seconds ago  Up 35 seconds            qm
+e3b72595c8e0  localhost/auto-apps:latest    /usr/bin/engine-s...  4 seconds ago   Up 4 seconds             systemd-engine
 ----
 
 - `systemd-engine` is the engine service, running from the `auto-apps` container image.
 - `qm` is the whole QM partition. It is a container too, running its own init system (`/sbin/init`).
+- `ffi_server` collects reports from a test application in the QM partition. You will use it at the end of this activity.
 
 The engine service runs as a systemd service named `engine`. Follow its log:
 
@@ -50,27 +55,53 @@ Every few seconds the engine switches gear:
 
 [source,sh]
 ----
-... localhost systemd-engine[660]: ENGINE: Reversing...
-... localhost systemd-engine[660]: ENGINE: Driving...
-... localhost systemd-engine[660]: ENGINE: Reversing...
+Oct 23 00:03:33 auto-app systemd-engine[697]: ENGINE: Reversing...
+Oct 23 00:03:37 auto-app systemd-engine[697]: ENGINE: Driving...
+Oct 23 00:03:47 auto-app systemd-engine[697]: ENGINE: Reversing...
 ----
 
-NOTE: Right after boot you may also see a few `[error]` or `[warning]` lines about `/run/vsomeip`. They appear while the services start up and can be ignored.
+NOTE: Right after boot you may also see a few `[error]` or `[warning]` lines from vsomeip. They appear while the services start up and can be ignored.
 
 IMPORTANT: Press *Ctrl+C* to stop following the log.
 
-Now look at the processes of the demo applications:
+Now look at all processes on the system as a tree, together with their SELinux security context (the `Z` option):
 
 [source,sh,role=execute]
 ----
-ps -ef | grep -E 'engine|radio|routing' | grep -v grep
+ps axfZ
 ----
 
-You see the engine service, but also the radio service and the routing manager, even though those run inside the QM partition.
-From the root partition, you can see everything that runs on the system, including the processes in the QM partition.
+The output is long. Scroll to the end, where you find the containers. Shortened, it looks like this:
 
-// TODO(dry run): confirm that the ps output above shows radio-service and routingmanagerd
-// from the QM partition, and add a sample output block.
+[source,sh]
+----
+system_u:system_r:container_runtime_t:s0  372 ?  Ss   0:00 /usr/bin/conmon --api-version 1 -c 3357cd1dfbb4...
+system_u:system_r:qm_t:s0                 375 ?  Ss   0:00  \_ /sbin/init
+system_u:system_r:qm_t:s0                 424 ?  Ss   0:00      \_ /usr/lib/systemd/systemd-journald
+...
+system_u:system_r:qm_container_ipc_t:s0:c296,c653  497 ?  Ssl  0:00      |   \_ /usr/bin/radio-service
+...
+system_u:system_r:qm_container_ipc_t:s0:c293,c888  498 ?  Ss   0:00      |   \_ /usr/bin/dlt-daemon
+...
+system_u:system_r:qm_container_ipc_t:s0:c637,c642  525 ?  Ssl  0:00          \_ /usr/bin/routingmanagerd
+...
+system_u:system_r:container_runtime_t:s0  674 ?  Ss   0:00 /usr/bin/conmon --api-version 1 -c d9825f8af18c...
+system_u:system_r:ipc_t:s0:c109,c354      677 ?  Ssl  0:00  \_ /usr/bin/engine-service
+...
+system_u:system_r:ipc_t:s0:c412,c870      702 ?  Ss   0:00  \_ ffi-server
+----
+
+// TODO(dry run): replace this sample with real ps axfZ output from the event image (PIDs, categories,
+// and the exact command of the ffi_server container are illustrative).
+
+Two things stand out:
+
+- From the root partition, you see *everything* that runs on the system, including the radio service, the DLT logging
+  daemon, and the routing manager inside the QM partition.
+- Every process carries an SELinux label in the first column. The QM partition itself runs as `qm_t`. The radio service,
+  the DLT daemon, and the routing manager run as `qm_container_ipc_t`, and the engine service and the FFI server run
+  as `ipc_t`.
+  Keep these labels in mind, you will need them in a moment.
 
 
 [#qmpartition]
@@ -98,38 +129,112 @@ podman ps
 [source,sh]
 ----
 CONTAINER ID  IMAGE                       COMMAND               CREATED        STATUS        PORTS  NAMES
-a4ca2dc05...  localhost/auto-apps:latest  /usr/bin/dlt-daem...  2 minutes ago  Up 2 minutes         systemd-dlt
-66c315d78...  localhost/auto-apps:latest  /usr/bin/radio-se...  2 minutes ago  Up 2 minutes         systemd-radio
-5d343e699...  localhost/auto-apps:latest  /usr/bin/routingm...  2 minutes ago  Up 2 minutes         systemd-routingmanagerd
+edc9600baeb5  localhost/auto-apps:latest  /usr/bin/radio-se...  8 minutes ago  Up 8 minutes         systemd-radio
+a8b28d50a0c0  localhost/auto-apps:latest  /usr/bin/dlt-daem...  8 minutes ago  Up 8 minutes         systemd-dlt
+2e131385d7c1  localhost/auto-apps:latest  /usr/bin/routingm...  7 minutes ago  Up 7 minutes         systemd-routingmanagerd
 ----
 
 Here you find the radio service, the routing manager, and a DLT logging daemon (DLT is the standard logging format in automotive systems).
 They use the same `auto-apps` container image as the engine service in the root partition.
 
-Follow the radio's log:
+[#radio]
+=== Listen to the radio
+
+The radio has a small client to control it. Start the client inside the running radio container:
 
 [source,sh,role=execute]
 ----
-journalctl -f -u radio
+podman exec -it systemd-radio radio-client
 ----
+
+The client shows what the radio is playing:
 
 [source,sh]
 ----
-... systemd-radio[95]: RADIO: Playing song "Still Livin'" by Freddie Gibbs (on Radio Los Santos) 50% volume
-... systemd-radio[95]: RADIO: Playing song "I Can't Wait" by Young Scooter feat. Trinidad James (on Radio Los Santos) 50% volume
+Station: Radio Los Santos
+Song:    ILLuminate
+Artist:  Ab-Soul feat. Kendrick Lamar
+Volume:  [##########          ]
+-----------------------------------------
+ Usage: volume: +/-, station: SPACE on/off: ESC, quit: Q
 ----
 
-// TODO(dry run): the radio is meant to lower its volume while the engine reverses. In the
-// 2026-11-09 demo the volume stayed at 50%, possibly because of the missing SELinux rules.
-// If it works by the dry run, add a step that shows the volume change here.
+Press *+* a few times to turn the volume up, and press *SPACE* to switch to another station. Then wait a few seconds
+and watch the volume bar.
 
-IMPORTANT: Press *Ctrl+C* to stop following the log.
+Whenever the engine service in the root partition switches to reverse, the client shows `[REVERSING]` and the radio
+turns its volume down on its own:
+
+[source,sh]
+----
+Station: Radio Los Santos
+Song:    Sellin' Dope
+Artist:  Freddie Gibbs & Mike Dean
+Volume:  [######              ]
+-----------------------------[REVERSING]-
+ Usage: volume: +/-, station: SPACE on/off: ESC, quit: Q
+----
+
+This is the whole demo application at work: the safety-relevant engine service in the root partition tells the radio
+service in the QM partition that the vehicle is reversing, through the routing manager.
+
+IMPORTANT: Press *Q* to quit the radio client.
+
+TIP: Later, you can start the radio client directly from the root partition, without entering the QM partition first:
+`podman exec -it qm podman exec -it systemd-radio radio-client`. The outer command enters the QM partition, the inner
+one enters the radio container inside it.
+
+[#radiolocal]
+=== Try the same client from outside the container
+
+The radio client is also installed directly in the QM partition. Start it there, outside the radio container:
+
+[source,sh,role=execute]
+----
+radio-client
+----
+
+This time the client cannot reach the radio. Instead you see a stream of vsomeip warnings and errors such as:
+
+[source,sh]
+----
+... [warning] cei::shutdown_and_close_socket_unlocked: socket has been reset, ...
+... [error] ltcei::max_allowed_reconnects_reached: ...
+... [info] Application/Client 1002: Reconnecting to routing manager.
+----
+
+IMPORTANT: If the client does not return to the `bash-5.2#` prompt by itself, press *Ctrl+C*.
+
+It is the same program, in the same partition. The difference is the permission to use the sockets that the services
+communicate over. Started inside the radio container, the client runs with the `qm_container_ipc_t` label you saw
+earlier. Started directly in the QM partition, it does not get that label, and it is not allowed in. This is not a
+bug, it is one of the security mechanisms of the platform at work.
+
+// TODO(selinux): test whether labeling the local radio-client with semanage (IPC type
+// context) makes it work. If it does, add an optional step here that applies the label and
+// shows the client connecting.
+
+[#qmps]
+=== The processes inside the QM partition
 
 Now look at the processes again, this time from inside the QM partition:
 
 [source,sh,role=execute]
 ----
-ps -ef
+ps axl
+----
+
+[source,sh]
+----
+F   UID   PID  PPID PRI  NI    VSZ   RSS WCHAN  STAT TTY   TIME COMMAND
+4     0     1     0  20   0  21352 12396 ep_pol Ss   ?     0:00 /sbin/init
+4     0    26     1  20   0  33444 10032 ep_pol Ss   ?     0:00 /usr/lib/systemd/systemd-journald
+...
+4     0    96    92  20   0 257692  7508 ep_pol Ssl  ?     0:00 /usr/bin/radio-service
+4     0    97    93  20   0   3172  2352 poll_s Ss   ?     0:00 /usr/bin/dlt-daemon
+...
+4     0   124   122  20   0 209068  8052 ep_pol Ssl  ?     0:00 /usr/bin/routingmanagerd
+...
 ----
 
 The picture is very different:
@@ -137,19 +242,8 @@ The picture is very different:
 - You only see the processes of the QM partition. The engine service and everything else in the root partition are invisible.
 - The QM partition has its own PID namespace: its own init system runs as PID 1, and the process IDs differ from the ones you saw in the root partition.
 
-// TODO(dry run): confirm that ps is available in the QM partition and add a sample output block.
-
 This is the isolation that makes mixed criticality possible. The root partition can observe and control the QM partition,
 but workloads in the QM partition cannot see or interfere with the safety-relevant workloads in the root partition.
-The only connection between the two is the one that was configured on purpose: a shared socket directory
-(`/run/vsomeip`) through which the services exchange SOME/IP messages.
-
-NOTE: In this demo image, SELinux runs in *permissive* mode: policy violations are logged but not blocked.
-A production RHIVOS system runs SELinux in *enforcing* mode, which adds another layer of protection between the partitions.
-
-
-[#leave]
-== Leave the device
 
 Leave the QM partition and return to the root partition:
 
@@ -157,6 +251,168 @@ Leave the QM partition and return to the root partition:
 ----
 exit
 ----
+
+Your prompt is back to `[root@auto-app ~]#`.
+
+
+[#ipc]
+== How the partitions talk to each other
+
+If the partitions are isolated, how does the engine tell the radio that it is reversing? The only connection between them
+is the one that was configured on purpose: a shared directory with communication sockets. List it:
+
+[source,sh,role=execute]
+----
+ls -l /run/ipc/
+----
+
+[source,sh]
+----
+total 0
+drwxrwxrwt. 2 root root 100 Oct 23 00:00 dlt
+drwxrwxrwt. 2 root root 120 Oct 23 00:09 vsomeip
+----
+
+The `vsomeip` directory holds the sockets for the SOME/IP communication:
+
+[source,sh,role=execute]
+----
+ls -l /run/ipc/vsomeip/
+----
+
+[source,sh]
+----
+total 0
+srw-rw-rw-. 1 root root 0 Oct 23 00:00 vsomeip-0
+srw-rw-rw-. 1 root root 0 Oct 23 00:00 vsomeip-101
+srw-rw-rw-. 1 root root 0 Oct 23 00:00 vsomeip-103
+--w-------. 1 root root 0 Oct 23 00:00 vsomeip.lck
+----
+
+`vsomeip-0` belongs to the routing manager, which coordinates the communication. The other sockets belong to the
+services connected to it, such as the engine and the radio.
+
+Now the SELinux labels from the beginning of this activity make sense:
+
+- The engine service runs as `ipc_t`, and the radio service, DLT daemon, and routing manager run as `qm_container_ipc_t`.
+  These labels allow them to use the sockets in `/run/ipc`.
+- Everything else in the QM partition runs as `qm_t`, without access to the sockets. That is why the radio client
+  failed when you started it outside the radio container.
+
+Check that SELinux actually enforces its policy on this system:
+
+[source,sh,role=execute]
+----
+getenforce
+----
+
+[source,sh]
+----
+Enforcing
+----
+
+Like a production RHIVOS system, this image runs SELinux in *enforcing* mode: every access that the policy does not
+allow is blocked. The access rights to the communication between the partitions are not a matter of convention: they
+are part of the image and enforced by the operating system. The socket file permissions (`srw-rw-rw-`) alone would let
+anybody in; SELinux is the layer that decides.
+
+// TODO(selinux): the image manifest sets selinux_mode: enforcing (since the 2026-11-09 build).
+// Confirm getenforce on the event image during the dry run. Open question: the local
+// radio-client logged TCP connect errors to 10.88.0.1:31000 ("Cannot assign requested address")
+// rather than permission errors; check with "ausearch -m avc -ts recent" whether SELinux
+// denials are logged when it fails, and refine the explanation above if needed.
+
+
+[#ffi]
+== Freedom from interference: a runaway application
+
+Isolated processes are one part of freedom from interference. The other part is resources: a misbehaving application
+in the QM partition must not be able to take memory away from the safety-relevant applications in the root partition.
+
+The image contains a test application for exactly this case. The *FFI client* runs in the QM partition, allocates more
+and more memory, and reports its memory use to the *FFI server* (`ffi_server`) in the root partition, through a socket
+in `/run/ipc`. The QM partition as a whole may use at most *20%* of the device's memory. You will see where this limit
+is set in the next activity.
+
+NOTE: This section takes about 5 minutes. If your 30-minute lease ends in the middle of it, lease, flash, and boot the
+device again, and continue here.
+
+TIP: To watch several things at once, for example `top`, the engine log, and the radio client side by side, you can
+split the serial console into panes with `tmux`, which is installed on the device. See the
+xref:cheatsheet.adoc#tmux[Cheatsheet] for the essential keys.
+
+Start the FFI client. It runs as a systemd service inside the QM partition:
+
+[source,sh,role=execute]
+----
+podman exec qm systemctl start ffi_client
+----
+
+The command returns without output. Now watch the memory use of the processes, sorted by memory:
+
+[source,sh,role=execute]
+----
+top -o %MEM
+----
+
+The FFI client is the `python3` process at the top of the list. Its memory use (`RES` and `%MEM`) grows quickly:
+
+[source,sh]
+----
+MiB Mem :  11927.8 total,   9402.7 free,   2334.5 used,    308.7 buff/cache
+...
+    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND
+   2011 root      20   0 2082520   2.0g   6072 S   2.3  17.0   0:00.87 python3
+----
+
+Keep watching. When the QM partition reaches its limit of 20% of the memory (about 2.4 GB on this device), the kernel's
+out-of-memory (OOM) killer stops the FFI client. The `python3` process disappears, and shortly afterwards a new one with
+a different PID starts with low memory use: systemd in the QM partition restarts the service automatically. This cycle
+repeats about once a minute.
+
+IMPORTANT: Press *q* to quit `top`.
+
+The FFI server in the root partition logs every report it receives. Follow its log:
+
+[source,sh,role=execute]
+----
+journalctl -f -u ffi_server
+----
+
+The reports are long lines that run together. Look for the `percent` values, the share of the device's memory in use:
+
+[source,sh]
+----
+... MemoryDump (00:06:13): virtual = 2097.71484375, total = 11927.7578125, available = 9531.6015625, used = 2396.15625,
+free = 9258.34375, percent = 20.1MemoryDump (00:06:13): virtual = 2162.71875, total = 11927.7578125, ...
+----
+
+The time in parentheses identifies one run of the client. When the client is killed and restarted, a new series of
+reports with a new time begins, and the values drop again.
+
+IMPORTANT: Press *Ctrl+C* to stop following the log.
+
+Meanwhile, the safety-relevant engine service in the root partition was not affected at all. Check that it kept
+switching gears the whole time. This shows the engine log of the last 10 minutes:
+
+[source,sh,role=execute]
+----
+journalctl -u engine --since "-10 min" --no-pager
+----
+
+The timestamps run without gaps, right up to now. The OOM killer only acted inside the memory limit of the QM partition,
+and the root partition did not notice anything. This is freedom from interference for memory.
+
+Finally, stop the FFI client. Because systemd restarts it after every kill, it keeps running until you stop it:
+
+[source,sh,role=execute]
+----
+podman exec qm systemctl stop ffi_client
+----
+
+
+[#leave]
+== Leave the device
 
 IMPORTANT: Quit the serial console by *pressing `Ctrl+B` three times*.
 
@@ -170,6 +426,30 @@ exit
 ----
 
 Your prompt is back to `(venv) sc-demo (main) $`.
+
+// TODO(ffi): the radio currently shows no visible effect under CPU load. If the radio service
+// or client gets an additional compute load to make the effect visible, describe what to watch
+// for in the radio client here.
+.Demonstration: freedom from interference for CPU time
+****
+Memory is not the only shared resource. A misbehaving application in the QM partition must not be able to starve the
+safety-relevant applications of CPU time either.
+
+Your instructors show this on the projector: they start the stress generator `stress-ng` in the QM partition, which
+keeps two CPU cores busy at 99% load for 30 seconds:
+
+[source,sh]
+----
+podman exec qm podman run --replace --name=stress-ng --read-only=false --privileged localhost/stress-ng \
+  --timeout 30 --cpu 2 --cpu-load 99 --cpu-method pi
+----
+
+While `top` shows the `stress-ng-cpu` processes at full load, the engine service in the root partition keeps switching
+gears on schedule.
+
+This demonstration is not part of your hands-on steps: 50 stress generators running at the same time would load the
+shared lab cluster for everybody.
+****
 
 == Next
 

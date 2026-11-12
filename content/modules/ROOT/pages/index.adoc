@@ -3,13 +3,17 @@
 The move to software-defined vehicles (SDVs) in the automotive industry presents challenges in developing software for electronic control units (ECUs) that
 require hardware-in-the-loop (HIL) testing.
 
-This lab shows you how a "Software Factory" approach supports the development of automotive software. You will work in
-https://developers.redhat.com/products/openshift-dev-spaces/overview[Red Hat OpenShift Dev Spaces,window=_blank], boot a
+This lab shows you how a "Software Factory" approach supports the development of automotive software. It uses the
+*Red Hat Automotive Suite* (RHAS), an integrated development environment on Red Hat OpenShift for developing, testing,
+and deploying applications for the
 https://www.redhat.com/en/blog/new-standard-red-hat-vehicle-operating-system-modern-and-future-vehicles[Red Hat In-Vehicle OS,window=_blank]
-image with containerized automotive applications on a virtual device, and look inside the running system.
+(RHIVOS).
 
-Along the way, you will use https://jumpstarter.dev/[Jumpstarter,window=_blank], the open source tool that gives you access to
-virtual and physical test devices. You will also see how it works together with
+You will use the components of the suite: you work in
+https://developers.redhat.com/products/openshift-dev-spaces/overview[Red Hat OpenShift Dev Spaces,window=_blank], lease a
+virtual device with https://jumpstarter.dev/[Jumpstarter,window=_blank], boot a RHIVOS image with containerized
+automotive applications on it, and look inside the running system. You will also see how Jumpstarter and the RHAS
+Builder work together with
 https://www.redhat.com/en/technologies/cloud-computing/openshift/pipelines[Red Hat OpenShift Pipelines,window=_blank]
 to build and test every change automatically.
 
@@ -18,15 +22,28 @@ to build and test every change automatically.
 This is a guided lab. You do not have to write code: you follow the steps and see each part of the
 platform in action.
 
-* Log in to your prepared workspace and connect it to the build service and to Jumpstarter
+* Log in to your personal workspace and connect it to the build service and to Jumpstarter
 * Lease a virtual device, flash a RHIVOS image onto it, and boot it
 * Explore the running system: the safety-relevant root partition, the QM partition, and the containerized applications in both
+* See how SELinux labels control which applications may communicate across the partitions
+* Let an application in the QM partition run out of memory, and see that the safety-relevant applications are not affected
 * Find out how the image you booted was built: the image manifest and the automated build pipeline
 
-The hands-on part takes about 60 minutes.
+== How the lab runs
+
+. *Introduction* - All participants start together with a short introduction to the platform, the demo application,
+  and the idea of freedom from interference.
+. *Hands-on* - You work through the lab activities in your own workspace, at your own pace. Instructors are in the room to help.
+  This part takes about 60 minutes.
+. *Demonstrations* - Your instructors show, on the projector, what does not fit into a hands-on lab: a change running
+  through the build pipeline, the same image on a physical ARM board, and freedom from interference under CPU load.
+
+Sections marked *Bonus* are optional. Skip them if you are short on time, and come back to them later.
 
 At the end of this lab, you will have a basic understanding of the Red Hat Automotive Suite and how it helps you develop, build, and test automotive software.
 
 == Next
 
-Before diving into the lab activities, let's take a look at the Red Hat In-Vehicle Operating System, the Red Hat Automotive Suite, and Jumpstarter.
+Before diving into the lab activities, let's take a look at the Red Hat In-Vehicle Operating System that your software
+runs on, at the Red Hat Automotive Suite that you develop it with, and at Jumpstarter, the suite's component for
+testing on devices.

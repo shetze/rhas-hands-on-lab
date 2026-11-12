@@ -2,7 +2,28 @@
 
 During the workshop, you have learned how to:
 
-- work in a prepared cloud development environment in Red Hat OpenShift Dev Spaces, connected to the Red Hat Automotive Suite.
+- work in Red Hat OpenShift Dev Spaces, the cloud development environment of the Red Hat Automotive Suite.
 - lease a test device with Jumpstarter, flash a Red Hat In-Vehicle OS (RHIVOS) image onto it, and boot it.
 - tell the root (ASIL) partition and the QM partition apart, and see how they isolate workloads of different criticality.
+- see how SELinux labels decide which applications may communicate across the partitions.
+- watch the memory limit of the QM partition contain a runaway application, while the root partition keeps running.
 - read an image manifest, and follow how a pipeline builds, flashes, and tests every change automatically — on a virtual device today, and on physical hardware with the same tools.
+
+== Keep exploring
+
+You do not have to stop when the session ends:
+
+- The lab environment stays available until the end of the event. Log in again with your lab user and the password
+  you set, and finish the activities or the *Bonus* sections you skipped.
+- The lab repository is public. Clone it to look at the application, the image manifest, and the pipeline at your own pace:
++
+[source,sh,role=copypaste,subs="+attributes"]
+----
+{lab_repo_url}
+----
+
+// TODO(take-home): add the instructions for running the demo locally with podman
+// (what exactly to run, and on which architecture).
+
+If you are working on automotive software and want to try the Red Hat Automotive Suite for your own projects,
+talk to your instructors or your Red Hat contact.

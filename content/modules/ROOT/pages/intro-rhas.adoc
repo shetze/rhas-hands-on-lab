@@ -16,54 +16,30 @@ RHAS combines a set of tools on one OpenShift cluster:
 - *RHAS Builder* - RHIVOS image builds with the Automotive Image Builder, as a service on OpenShift. You use it with the
   `caib` (Cloud Automotive Image Builder) command.
 
-In this lab, you work with all three platform components: you open your workspace in Dev Spaces, lease a device with Jumpstarter, and
-list and follow image builds with `caib`. Your instructors show how Red Hat OpenShift Pipelines ties them together to
-build and test every change automatically. The images built this way run RHIVOS, in the vehicle or, in this lab, on a
-virtual device.
-
-RHAS creates an integrated ecosystem for software-defined vehicle development, where you and your team can:
-
-- Access pre-configured tools and standardized workflows without the usual setup headaches.
-- Leverage automated testing processes for faster turn-around times in development and testing.
-- Use familiar Linux-based tools that feel like home to developers.
-
-The platform's cloud integration isn't just buzzword compliance. It gives you genuinely scalable testing environments and supports rapid
-prototyping when you need to validate concepts quickly.
+In this lab, you work with three of these tools: you open your workspace in Dev Spaces, lease a device with
+Jumpstarter, and list and follow image builds with `caib`. Your instructors show how Red Hat OpenShift Pipelines ties
+them together to build and test every change automatically.
 
 
 == Solution architecture
 
 RHAS covers the complete software lifecycle as a continuous loop of four stages:
 
-. **Development** - Data-driven, cloud-based development to start coding instantly.
-  https://developers.redhat.com/products/openshift-dev-spaces/overview[Red Hat OpenShift Dev Spaces,window=_blank] provides the code environment,
-  https://developers.redhat.com/rhdh/overview[Red Hat Developer Hub,window=_blank] organizes your projects, and telemetry data flows back from the targets.
-. **Integration** - Build, test, and integrate code changes within a shared repository.
-  https://www.redhat.com/en/technologies/cloud-computing/openshift/pipelines[Red Hat OpenShift Pipelines,window=_blank] builds and tests your code,
-  https://www.redhat.com/en/products/trusted-application-pipeline[Red Hat Trusted Application Pipeline (TAP),window=_blank] secures your software supply chain,
-  and a container registry, such as https://www.redhat.com/en/technologies/cloud-computing/quay[Red Hat Quay,window=_blank] or the OpenShift internal registry used in this lab, stores the resulting artifacts.
-. **Deployment and delivery** - Deploy changes to staging or deliver them to production for approval.
-  https://jumpstarter.dev/[Jumpstarter,window=_blank] deploys your software to staging targets, and device management delivers it to production.
-. **Targets** - Your software runs on virtual instances, on physical devices, and finally on the vehicles of a fleet.
-  Feedback from the targets flows back into development, closing the loop.
-
-Red Hat Developer Hub can act as the central entry point into this loop. Together with Red Hat OpenShift Dev Spaces, it gives you instant access to fully-configured development environments.
-
-This Internal Development Platform (IDP) is built on the open-source https://backstage.spotify.com/[Backstage,window=_blank] project and comes ready
-with all the tools, extensions, and configurations you need through a single dashboard.
-
-NOTE: In this lab you work with Red Hat OpenShift Dev Spaces directly. Your workspace is opened from the lab repository, so it contains everything you need.
-
-This approach means that:
-
-- Your team starts coding immediately instead of wrestling with environment setup.
-- You maintain consistent security and governance practices across teams.
-- Development processes follow standardized patterns while still allowing for innovation.
-- Environment-related issues become a thing of the past.
-
-The diagram below provides an overview of the components used in the RHAS architecture:
-
 image::rhas/01-architecture.png[]
+
+. **Development** - Cloud-based development environments in
+  https://developers.redhat.com/products/openshift-dev-spaces/overview[Red Hat OpenShift Dev Spaces,window=_blank],
+  optionally organized by https://developers.redhat.com/rhdh/overview[Red Hat Developer Hub,window=_blank].
+. **Integration** - https://www.redhat.com/en/technologies/cloud-computing/openshift/pipelines[Red Hat OpenShift Pipelines,window=_blank]
+  builds and tests every change, https://www.redhat.com/en/products/trusted-application-pipeline[Red Hat Trusted Application Pipeline,window=_blank]
+  secures the software supply chain, and a container registry stores the results. This lab uses the OpenShift internal registry.
+. **Deployment and delivery** - https://jumpstarter.dev/[Jumpstarter,window=_blank] deploys the software to test devices;
+  device management delivers it to production.
+. **Targets** - The software runs on virtual devices, on physical devices, and finally in the vehicles of a fleet.
+  Feedback from the targets flows back into development.
+
+NOTE: This lab covers development, integration, and deployment to test devices. Developer Hub, telemetry, and fleet
+delivery are not part of it.
 
 [#rhivosworkflow]
 == From source code to the device
@@ -86,74 +62,20 @@ The Red Hat Automotive Suite automates this flow on OpenShift:
 .Generic automotive app development workflow
 image::rhas/04-app-workflow.svg[Generic automotive app development workflow: code repository, app and OS build pipelines, artifact store, Jumpstarter flashing a virtual machine or a device under test]
 
-. A developer starts from a template, then commits code to a repository or opens a merge request.
+. A developer commits code to a repository or opens a merge request.
 . An *app build pipeline* builds the application into a container image or RPM and stores it in an *artifact store*,
-  such as a container registry. From there, it can already be deployed and tested as a pod on OpenShift.
+  such as a container registry.
 . An *OS build pipeline* uses the Automotive Image Builder to compose the application and the OS into an image,
   which is stored in the artifact store as well.
-. *Jumpstarter* takes the image from the artifact store and flashes it onto a virtual machine or a physical device under test (DuT, often an SoC board).
+. *Jumpstarter* takes the image from the artifact store and flashes it onto a virtual machine or a physical device under
+  test (DUT, often an SoC board).
 
-In this lab, you follow the lower half of this flow: you take an image that the pipeline has already built from the
-artifact store, flash it onto a virtual machine with Jumpstarter, and look inside. In the last activity, you walk back through
-the manifest and the OS build pipeline that produced it. The upper half, a code change that runs through the pipeline and
-produces a new image, is shown by your instructors on the projector.
-
-The path to a physical device under test uses the same image and the same Jumpstarter commands. Your instructors show it
-in a short excursion on a real ARM SoC board.
-
-[#workflow]
-== Development workflow
-
-The development workflow follows a structured yet flexible path from initial code creation to final deployment. 
-
-As a developer, when you start your day, you'll access your cloud workspace and pull the latest code base. Behind the scenes, the 
-platform automatically processes your metadata (Infrastructure-as-Code) to configure your development environment with exactly 
-what you need (GitOps principles in action).
-
-As you code, continuous validation and testing processes run in the background, giving you immediate feedback about code quality, 
-security vulnerabilities, and potential issues. This DevSecOps approach means you'll catch problems early when they're 
-easier and cheaper to fix, rather than discovering them during final testing.
-
-Your code undergoes multiple layers of validation through a comprehensive testing strategy. It starts with cloud-based testing 
-environments to verify basic functionality and integration with other components. This is where most common issues are caught and resolved quickly.
-
-From there, your code progresses to testing on virtual hardware, where you can observe how it behaves in a simulated automotive environment. 
-Finally, Hardware-in-the-Loop (HIL) testing connects your software to actual automotive components (SoCs) in controlled conditions, 
-giving you confidence that your code will perform as expected in real vehicles.
-
-Key Components:
-
-- https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/pipelines/index[OpenShift Pipelines,window=_blank] and https://docs.redhat.com/en/documentation/openshift_container_platform/4.18/html/gitops/index[OpenShift GitOps,window=_blank] for continuous integration and deployment.
-- https://pipelinesascode.com/[Pipelines as Code,window=_blank] for defining your CI/CD workflows as code.
-- https://docs.redhat.com/en/documentation/red_hat_openshift_dev_spaces/3.20[OpenShift Dev Spaces,window=_blank] for consistent, cloud-based development environments.
-- https://jumpstarter.dev/[Jumpstarter,window=_blank] for automated testing across virtual and physical hardware.
-- https://www.redhat.com/en/products/trusted-application-pipeline[Red Hat Trusted Application Pipeline (TAP),window=_blank] for securing your software supply chain.
-- A container registry, such as https://www.redhat.com/en/technologies/cloud-computing/quay[Red Hat Quay,window=_blank] or the OpenShift internal registry used in this lab, for your container images and other artifacts.
-- Telemetry and device management for feedback from the targets and delivery to the vehicle fleet (not covered in this lab).
-
-[#hiltesting]
-== Virtual and Hardware-in-the-Loop Testing
-
-Virtual testing and Hardware-in-the-Loop (HIL) testing are essential methods in modern automotive software development. 
-With virtual testing, you can validate vehicle systems through sophisticated simulations, eliminating the need for physical 
-prototypes in early development stages. 
-
-This approach significantly reduces development costs and time while allowing you to test edge cases that might be dangerous or impractical to test with real hardware.
-
-HIL testing takes validation to the next level by connecting actual vehicle hardware components (e.g. ECUs, sensors, and 
-actuators) to a cloud platform that creates a controlled test environment. This hybrid approach gives you the 
-best of both worlds: the safety and reproducibility of cloud environments with the confidence that comes from testing on real hardware. 
-
-
-== Jumpstarter
-
-Jumpstarter seamlessly integrates with your HIL testing environment, serving as the bridge between your CI/CD pipeline and physical hardware testing. 
-This https://github.com/jumpstarter-dev[open source,window=_blank] tool automates the deployment of your software to both virtual environments and actual 
-automotive hardware components, maintaining consistent testing conditions throughout your development process. 
-
-By incorporating Jumpstarter into your workflow, you'll eliminate the traditional disconnect between software development and hardware 
-validation, allowing your HIL tests to become a natural extension of your continuous integration process rather than a separate, manual testing phase. 
+In this lab, you follow the lower half of this flow: you take an image that the pipeline has already built, flash it
+onto a virtual machine with Jumpstarter, and look inside. In the last activity, you walk back through the manifest and
+the pipeline that produced it. The upper half, a code change that runs through the pipeline, is shown by your
+instructors on the projector, and so is the same image on a real ARM SoC board.
 
 == Next
 
-In the next section you will learn more about Jumpstarter and its role in the automotive software development lifecycle.
+In the next section you will learn more about Jumpstarter, the component that connects you and the pipelines to the
+test devices.

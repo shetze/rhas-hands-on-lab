@@ -1,10 +1,7 @@
 = Introduction to the Lab
 
-The move to software-defined vehicles (SDVs) in the automotive industry presents challenges in developing software for electronic control units (ECUs) that
-require hardware-in-the-loop (HIL) testing.
-
-This lab shows you how a "Software Factory" approach supports the development of automotive software. It uses the
-*Red Hat Automotive Suite* (RHAS), an integrated development environment on Red Hat OpenShift for developing, testing,
+This lab shows you how a "Software Factory" approach supports automotive software development for software-defined
+vehicles. It uses the *Red Hat Automotive Suite* (RHAS), an integrated development environment on Red Hat OpenShift for developing, testing,
 and deploying applications for the
 https://www.redhat.com/en/blog/new-standard-red-hat-vehicle-operating-system-modern-and-future-vehicles[Red Hat In-Vehicle OS,window=_blank]
 (RHIVOS).
@@ -26,7 +23,7 @@ platform in action.
 * Lease a virtual device, flash a RHIVOS image onto it, and boot it
 * Explore the running system: the safety-relevant root partition, the QM partition, and the containerized applications in both
 * See how SELinux labels control which applications may communicate across the partitions
-* Let an application in the QM partition run out of memory, and see that the safety-relevant applications are not affected
+* Put the QM partition under full CPU load, and see that the safety-relevant applications are not affected
 * Find out how the image you booted was built: the image manifest and the automated build pipeline
 
 == How the lab runs
@@ -36,11 +33,9 @@ platform in action.
 . *Hands-on* - You work through the lab activities in your own workspace, at your own pace. Instructors are in the room to help.
   This part takes about 60 minutes.
 . *Demonstrations* - Your instructors show, on the projector, what does not fit into a hands-on lab: a change running
-  through the build pipeline, the same image on a physical ARM board, and freedom from interference under CPU load.
+  through the build pipeline, and the same image on a physical ARM board.
 
 Sections marked *Bonus* are optional. Skip them if you are short on time, and come back to them later.
-
-At the end of this lab, you will have a basic understanding of the Red Hat Automotive Suite and how it helps you develop, build, and test automotive software.
 
 == Next
 

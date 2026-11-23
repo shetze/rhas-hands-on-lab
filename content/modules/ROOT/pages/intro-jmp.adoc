@@ -3,65 +3,35 @@ image::jumpstarter.svg[width=512px]
 
 == Overview
 
-Jumpstarter is an open source framework that brings enterprise-grade testing
-capabilities to everyone. While established industries like automotive and
-manufacturing have long used HiL testing, these tools have typically been
-expensive proprietary systems. Jumpstarter democratizes this technology through
-a free, cloud native approach that works with both physical hardware and virtual
-devices.
+https://jumpstarter.dev/[Jumpstarter,window=_blank] is an open source framework for testing software on hardware and on
+virtual devices. Hardware-in-the-loop (HIL) testing has long been done with expensive proprietary systems; Jumpstarter
+brings it to everyone with a free, cloud-native approach.
 
-In the Red Hat Automotive Suite, Jumpstarter is the component for hardware-in-the-loop (HIL) testing: it connects
-developers and pipelines to their virtual and physical test devices.
+In the Red Hat Automotive Suite, Jumpstarter connects developers and pipelines to their test devices. The same commands
+work for a virtual QEMU device and for a physical board: in this lab, you use them on a virtual device, and your
+instructors use them on an ARM board.
 
-At its core, Jumpstarter uses a client/server architecture where a single client
-can control multiple devices under test. Its modular design supports both local
-development (devices connected directly to your machine) and distributed testing
-environments (devices accessed remotely through a central controller). All
-communication happens over gRPC, providing a consistent interface regardless of
-deployment model.
-
-Built on Python, Jumpstarter integrates easily with existing development
-workflows and runs almost anywhere. It works with common testing tools like
-https://docs.pytest.org/en/stable/[pytest,window=_blank], shell scripts, Makefiles, and
-typical CI/CD systems. Beyond testing, it can function as a virtual KVM
-(Keyboard, Video, Mouse) switch, enabling remote access to physical devices for
-development.
-
+Jumpstarter is written in Python and works with common tools such as https://docs.pytest.org/en/stable/[pytest,window=_blank],
+shell scripts, Makefiles, and CI/CD systems.
 
 [#jmp_components]
 == Core components
 
-Jumpstarter architecture is based on the following key components:
+You meet these terms in the lab:
 
-- **Device Under Test (DUT)** - Hardware or virtual device being tested
-- **Drivers** - Interfaces for DUT communication
-- **Adapters** - Convert driver connections into various formats
-- **Exporters** - Expose device interfaces over network via gRPC
-- **Clients** - Libraries and CLI tools for device interaction
-- **Service** - Kubernetes controller for resource management
+- **Device Under Test (DUT)** - The hardware or virtual device being tested.
+- **Exporter** - Makes a device and its interfaces, such as power, serial console, and flasher, available over the
+  network. In this lab, every virtual device has its own Exporter.
+- **Client** - The `jmp` command-line tool and libraries you use to work with a device.
+- **Lease** - Reserves an Exporter for you for a limited time. Nobody else can use it until the lease ends.
+- **Service** - The controller on OpenShift that manages access to the Exporters and hands out leases.
 
-Component interactions include the following:
+Behind the Exporters, *drivers* talk to the hardware connections of the device, and *adapters* convert them for
+special use cases. All communication runs over gRPC.
 
-- **DUT and Drivers** - Drivers provide standardized interfaces to DUT's
-  hardware connections.
-- **Drivers and Adapters** - Adapters transform driver connections for
-  specialized use cases.
-- **Drivers/Adapters and Exporters** - Exporters manage drivers/adapters and
-  expose them via gRPC.
-- **Exporters and Clients** - Clients connect to exporters to control devices.
-- **Clients/Exporters and Service** - Service manages access control and
-  resource allocation in distributed mode.
-
-Together, these components form a comprehensive testing framework that bridges
-the gap between development and deployment environments.
-
-== Official Jumpstarter resources
-
-This section provides an overview of the basic Jumpstarter concepts. More detailed documentation and resources are 
-available on the https://jumpstarter.dev/index.html[official Jumpstarter documentation site,window=_blank].
-
-You can also find all the https://github.com/jumpstarter-dev/jumpstarter[source code,window=_blank] for Jumpstarter on GitHub.
+More detail is in the https://jumpstarter.dev/index.html[Jumpstarter documentation,window=_blank], and the
+https://github.com/jumpstarter-dev/jumpstarter[source code,window=_blank] is on GitHub.
 
 == Next
 
-Now that you have a basic understanding of the Red Hat Automotive Suite and how Jumpstarter works, you’re ready to dive into the lab activities.
+You are ready to start the lab activities.

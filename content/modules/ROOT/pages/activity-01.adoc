@@ -50,10 +50,8 @@ terminal does not have the focus, the browser handles the keys instead.
 == Log in to Red Hat OpenShift Dev Spaces
 
 You do not need to register. At the start of the lab, you get a slip of paper with your lab user, for example `user35`.
-Your instructor tells you the initial password, which is the same for everybody.
-
-// TODO(provisioning): confirm the user naming scheme (userN?) used by the provisioning
-// playbook, so that the printed slips match.
+The lab users are numbered with two digits, from `user01` to `user70`. Your instructor tells you the initial password,
+which is the same for everybody.
 
 IMPORTANT: Open Red Hat OpenShift Dev Spaces in a *private browser window*:
 
@@ -81,19 +79,22 @@ IMPORTANT: Do *not* choose *OpenShift* on this page. That login is reserved for 
 [#devspaces]
 == Open your workspace
 
-Every lab user has a personal workspace, named `rhas-starter`. Depending on how far the lab environment was prepared for
-you, it either exists already or you create it now. Look at the left side of the Dev Spaces dashboard:
+Every lab user has a personal copy of the lab repository, so that nobody else's changes get in your way. You create
+your workspace from that personal repository. Look at the left side of the Dev Spaces dashboard:
 
-* If `rhas-starter` is listed under *Recent Workspaces*, click the workspace name, or click the *⋮* menu next to it and choose *Open*.
-* If the dashboard shows *Workspaces (0)* and no recent workspaces, create your workspace from the lab repository:
+* If a workspace is already listed under *Recent Workspaces*, click the workspace name, or click the *⋮* menu next to it and choose *Open*.
+* If the dashboard shows *Workspaces (0)* and no recent workspaces, create your workspace now:
 .. Click *Create Workspace* on the left.
-.. Under *Import from Git*, paste the lab repository URL into the *Git repo URL* field:
+.. Under *Import from Git*, paste the URL of the lab repository into the *Git repo URL* field:
 +
 [source,sh,role=copypaste,subs="+attributes"]
 ----
-{lab_repo_url}
+{lab_user_repo_url}
 ----
+.. *Replace `NN` at the end of the URL with the number of your own lab user*, as printed on your slip, with two
+   digits: `user07` gets `workshop-user07`, not `workshop-user7`.
 .. Click *Create & Open*.
+
 
 The workspace now starts. It walks through initializing, waiting for the workspace to start, and finally opening the IDE.
 
@@ -121,12 +122,24 @@ If your workspace does not start or behaves strangely, go back to the Dev Spaces
 
 Before going further, confirm the workspace can reach the services it needs.
 
-IMPORTANT: Select *Terminal -> New Terminal* from the menu at the top left, and confirm the prompt.
+Open a terminal. The menu is easy to miss, because it is hidden behind an icon:
 
-TIP: Enlarge the terminal panel so it fills the screen. You will spend most of this lab in it. If the editor asks you to
-pick a color theme on first start, choose any.
+IMPORTANT: Click the menu icon with the three horizontal lines (*☰*) at the very top left of the window, then choose
+*Terminal -> New Terminal*. If the editor asks whether you trust the workspace, confirm.
+
+The terminal opens in a panel at the bottom of the window.
+
+IMPORTANT: Enlarge the terminal panel so that it fills the screen: click the *Maximize Panel Size* arrow (*^*) at the top
+right of the panel, or drag its upper edge up. You will spend most of this lab in this terminal, and some commands
+print wide output.
+
+TIP: If the editor asks you to pick a color theme on first start, choose any.
 
 Your prompt reads `(venv) sc-demo (main) $`. The Python virtual environment the lab needs is already active.
+
+// TODO(dry run): with the personal repositories, the project directory may be named workshop-userNN
+// instead of sc-demo. If so, update the prompts and the repository name on this page and in
+// activity-02 and activity-03.
 
 First, check that the Cloud Automotive Image Builder service is reachable:
 
@@ -217,8 +230,9 @@ mock-exporter-0  🟢 device=mock,type=virtual
 mock-exporter-1  🟢 device=mock,type=virtual
 mock-exporter-2  🟢 device=mock,type=virtual
 qemu-exporter-0  🟢 device=qemu,type=virtual
-qemu-exporter-1  🟢 device=qemu,type=virtual
-qemu-exporter-2  ❌ device=qemu,type=virtual
+qemu-exporter-1  🔒 device=qemu,type=virtual
+qemu-exporter-2  🟢 device=qemu,type=virtual
+qemu-exporter-3  ❌ device=qemu,type=virtual
 ...
 ----
 
@@ -227,7 +241,8 @@ Jumpstarter login works.
 
 - The `qemu-exporter-...` lines, labeled `device=qemu`, are the virtual QEMU devices you work with in this lab.
 - The `mock-exporter-...` lines, labeled `device=mock`, are simulated devices for testing Jumpstarter itself. You can ignore them.
-- The marker in front of the labels shows whether an Exporter is available (🟢) or not (❌), for example because it is offline.
+- The marker in front of the labels shows the state of an Exporter: 🟢 available, 🔒 leased by somebody (in use),
+  ❌ not available, for example because it is offline.
 
 // TODO(dry run): replace the output above with a screenshot from the event cluster once all
 // exporters are deployed (one qemu exporter per participant is needed).

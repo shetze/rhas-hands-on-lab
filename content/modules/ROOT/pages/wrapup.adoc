@@ -6,7 +6,7 @@ During the workshop, you have learned how to:
 - lease a test device with Jumpstarter, flash a Red Hat In-Vehicle OS (RHIVOS) image onto it, and boot it.
 - tell the root (ASIL) partition and the QM partition apart, and see how they isolate workloads of different criticality.
 - see how SELinux labels decide which applications may communicate across the partitions.
-- watch the memory limit of the QM partition contain a runaway application, while the root partition keeps running.
+- put the QM partition under full CPU load, and see the radio suffer while the safety-relevant engine keeps running.
 - read an image manifest, and follow how a pipeline builds, flashes, and tests every change automatically — on a virtual device today, and on physical hardware with the same tools.
 
 == Keep exploring
